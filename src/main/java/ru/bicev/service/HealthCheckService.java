@@ -1,9 +1,12 @@
 package ru.bicev.service;
 
+import java.net.ConnectException;
 import java.net.URI;
+import java.net.UnknownHostException;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.net.http.HttpTimeoutException;
 import java.time.Duration;
 import java.time.LocalDateTime;
 
@@ -41,6 +44,15 @@ public class HealthCheckService {
             log.isSuccess = (log.statusCode == service.expectedStatusCode);
             log.responseTimeMs = System.currentTimeMillis() - startTime;
 
+        } catch (HttpTimeoutException e) {
+            log.isSuccess = false;
+            log.failureReason = "Timeout: service did not respond within expected time.";
+        } catch (UnknownHostException e) {
+            log.isSuccess = false;
+            log.failureReason = "DNS error: unable to find host.";
+        } catch (ConnectException e) {
+            log.isSuccess = false;
+            log.failureReason = "Connection refused: service is not accepting connections.";
         } catch (Exception e) {
             log.isSuccess = false;
             log.failureReason = e.getMessage();
