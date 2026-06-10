@@ -1,5 +1,6 @@
 package ru.bicev.entity;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import org.hibernate.validator.constraints.URL;
@@ -29,10 +30,18 @@ public class MonitoredService extends PanacheEntity {
     @Max(599)
     public Integer expectedStatusCode = 200;
 
+    public LocalDateTime lastChecked;
+
     public boolean active = true;
 
     public static List<MonitoredService> findActive() {
         return list("active", true);
+    }
+
+    public static List<MonitoredService> findReadyToCheck() {
+        return find(
+                "active = true and (lastChecked is null or lastChecked + (checkIntervalSeconds * interval '1 second') < now())")
+                .list();
     }
 
     public static List<MonitoredService> findInactive() {
