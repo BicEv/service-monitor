@@ -22,7 +22,7 @@ import ru.bicev.entity.MonitoredService;
 //@ApplicationScoped
 public class MonitoringServiceOS {
 
-    @Inject
+    //@Inject
     HealthCheckService healthCheckService;
 
     private final HttpClient httpClient = HttpClient.newBuilder()
