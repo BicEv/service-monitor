@@ -1,5 +1,6 @@
 package ru.bicev.service;
 
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 
 import io.quarkus.scheduler.Scheduled;
@@ -18,11 +19,21 @@ public class MonitoringService {
     @VirtualThreads
     private Executor virtualThreadExecutor;
 
-    @Scheduled(every = "10s")
+    @Scheduled(every = "10s", concurrentExecution = Scheduled.ConcurrentExecution.SKIP)
     public void checkAllServices() {
-        MonitoredService.findReadyToCheck().forEach(service -> {
-            virtualThreadExecutor.execute(() -> healthCheckService.performCheck(service));
-        });
+        var services = MonitoredService.findReadyToCheck();
+
+        if (services.isEmpty())
+            return;
+
+        var futures = services.stream()
+        .map(service -> CompletableFuture.runAsync(
+            () -> healthCheckService.performCheck(service), 
+            virtualThreadExecutor
+        ))
+        .toArray(CompletableFuture[]::new);
+
+        CompletableFuture.allOf(futures).join();
     }
 
 }
