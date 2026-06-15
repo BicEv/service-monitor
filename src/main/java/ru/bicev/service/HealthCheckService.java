@@ -10,8 +10,13 @@ import java.net.http.HttpTimeoutException;
 import java.time.Duration;
 import java.time.LocalDateTime;
 
+import org.eclipse.microprofile.config.inject.ConfigProperty;
+
+import io.quarkus.mailer.Mail;
+import io.quarkus.mailer.reactive.ReactiveMailer;
+import io.quarkus.narayana.jta.QuarkusTransaction;
 import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.transaction.Transactional;
+import jakarta.inject.Inject;
 import ru.bicev.entity.HealthCheckLog;
 import ru.bicev.entity.MonitoredService;
 
@@ -22,24 +27,26 @@ public class HealthCheckService {
             .connectTimeout(Duration.ofSeconds(5))
             .build();
 
-    @Transactional
+    @Inject
+    ReactiveMailer mailer;
+
+    @Inject
+    @ConfigProperty(name = "monitoring.alert.email")
+    String alertEmail;
+
     public void performCheck(MonitoredService service) {
-
-        MonitoredService managedService = MonitoredService.findById(service.id);
-
         HealthCheckLog log = new HealthCheckLog();
-        log.service = managedService;
         log.checkedAt = LocalDateTime.now();
         long start = System.currentTimeMillis();
 
         try {
-            var request = HttpRequest.newBuilder().uri(URI.create(managedService.url))
+            var request = HttpRequest.newBuilder().uri(URI.create(service.url))
                     .timeout(Duration.ofSeconds(10)).GET().build();
 
             var response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
 
             log.statusCode = response.statusCode();
-            log.isSuccess = (log.statusCode == managedService.expectedStatusCode);
+            log.isSuccess = (log.statusCode == service.expectedStatusCode);
         } catch (HttpTimeoutException e) {
             log.isSuccess = false;
             log.failureReason = "Timeout: service did not respond within expected time.";
@@ -54,10 +61,32 @@ public class HealthCheckService {
             log.failureReason = e.getMessage();
         } finally {
             log.responseTimeMs = System.currentTimeMillis() - start;
-            managedService.lastChecked = LocalDateTime.now();
+            QuarkusTransaction.requiringNew().run(() -> {
+                MonitoredService managedService = MonitoredService.findById(service.id);
+                if (managedService != null) {
+                    managedService.lastChecked = LocalDateTime.now();
+                    log.service = managedService;
+                    log.persist();
+                }
+            });
 
-            log.persist();
+        }
+        if (alertEmail != null && !alertEmail.isBlank() && !log.isSuccess) {
+            sendAlertEmail(service, log);
         }
 
+    }
+
+    private void sendAlertEmail(MonitoredService service, HealthCheckLog log) {
+        String reason = log.failureReason != null ? log.failureReason : "Status code: " + log.statusCode;
+
+        mailer.send(Mail.withText(alertEmail,
+                "ALERT: Service " + service.name + " is DOWN!",
+                String.format("Service URL: %s\nChecked at: %s\nReason: %s\nResponse time: %d ms\nException reason: %s",
+                        service.url,
+                        log.checkedAt, reason, log.responseTimeMs, log.failureReason)))
+                .subscribe().with(success -> {
+                },
+                        failure -> System.err.println("Failed to send alert email: " + failure.getMessage()));
     }
 }
