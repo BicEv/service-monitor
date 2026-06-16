@@ -39,9 +39,12 @@ public class MonitoredService extends PanacheEntity {
     }
 
     public static List<MonitoredService> findReadyToCheck() {
-        return find(
-                "active = true and (lastChecked is null or lastChecked + (checkIntervalSeconds * interval '1 second') < now())")
-                .list();
+        List<MonitoredService> active = find("active = true").list();
+
+        LocalDateTime now = LocalDateTime.now();
+        return active.stream()
+                .filter(s -> s.lastChecked == null || s.lastChecked.plusSeconds(s.checkIntervalSeconds).isBefore(now))
+                .toList();
     }
 
     public static List<MonitoredService> findInactive() {
