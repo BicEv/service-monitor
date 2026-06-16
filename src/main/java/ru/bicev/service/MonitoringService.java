@@ -19,7 +19,7 @@ public class MonitoringService {
     @VirtualThreads
     private Executor virtualThreadExecutor;
 
-    @Scheduled(every = "10s", concurrentExecution = Scheduled.ConcurrentExecution.SKIP)
+    @Scheduled(identity = "check-services-job", every = "${check.services.job.every}", concurrentExecution = Scheduled.ConcurrentExecution.SKIP)
     public void checkAllServices() {
         var services = MonitoredService.findReadyToCheck();
 
@@ -27,11 +27,10 @@ public class MonitoringService {
             return;
 
         var futures = services.stream()
-        .map(service -> CompletableFuture.runAsync(
-            () -> healthCheckService.performCheck(service), 
-            virtualThreadExecutor
-        ))
-        .toArray(CompletableFuture[]::new);
+                .map(service -> CompletableFuture.runAsync(
+                        () -> healthCheckService.performCheck(service),
+                        virtualThreadExecutor))
+                .toArray(CompletableFuture[]::new);
 
         CompletableFuture.allOf(futures).join();
     }
