@@ -34,6 +34,10 @@ public class HealthCheckService {
     @ConfigProperty(name = "monitoring.alert.email")
     String alertEmail;
 
+    @Inject
+    @ConfigProperty(name = "monitoring.http.timeout-seconds")
+    int httpTimeoutSeconds;
+
     public void performCheck(MonitoredService service) {
         HealthCheckLog log = new HealthCheckLog();
         log.checkedAt = LocalDateTime.now();
@@ -41,7 +45,7 @@ public class HealthCheckService {
 
         try {
             var request = HttpRequest.newBuilder().uri(URI.create(service.url))
-                    .timeout(Duration.ofSeconds(10)).GET().build();
+                    .timeout(Duration.ofSeconds(httpTimeoutSeconds)).GET().build();
 
             var response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
 
