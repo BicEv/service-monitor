@@ -29,6 +29,17 @@ public class MonitoredServiceResource {
     }
 
     @GET
+    @Path("/{serviceId}")
+    public Response getServiceById(@PathParam("serviceId") Long serviceId) {
+        MonitoredService service = MonitoredService.findById(serviceId);
+        if (service == null) {
+            return Response.status(Response.Status.NOT_FOUND).build();
+        } else {
+            return Response.status(Response.Status.OK).entity(service).build();
+        }
+    }
+
+    @GET
     @Path("/active")
     public List<MonitoredService> getActiveServices() {
         return MonitoredService.findActive();
