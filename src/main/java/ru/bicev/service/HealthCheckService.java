@@ -50,7 +50,7 @@ public class HealthCheckService {
             var response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
 
             log.statusCode = response.statusCode();
-            log.isSuccess = (log.statusCode == service.expectedStatusCode);
+            log.isSuccess = (log.statusCode.equals(service.expectedStatusCode));
         } catch (HttpTimeoutException e) {
             log.isSuccess = false;
             log.failureReason = "Timeout: service did not respond within expected time.";
