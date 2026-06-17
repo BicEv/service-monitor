@@ -83,6 +83,36 @@ public class MonitoringServiceTest {
     }
 
     @Test
+    void testMonitoring_Success() {
+        QuarkusTransaction.requiringNew().run(() -> {
+            persistTestService("Google", "https://www.google.com");
+            persistTestService("Reddit", "https://www.reddit.com");
+
+        });
+
+        scheduler.resume();
+
+        try {
+            Thread.sleep(13000);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } finally {
+            scheduler.pause();
+        }
+
+        await().atMost(Duration.ofSeconds(5))
+                .pollInterval(Duration.ofMillis(500))
+                .until(() -> {
+                    long count = QuarkusTransaction.requiringNew().call(() -> HealthCheckLog.count());
+                    return count >= 1;
+                });
+
+        long finalCount = QuarkusTransaction.requiringNew().call(() -> HealthCheckLog.count());
+        assertEquals(4, finalCount);
+
+    }
+
+    @Test
     void testSchedulerSkipsOverlappingRuns() {
         QuarkusTransaction.requiringNew().run(() -> {
             persistTestService("Slow-service", "http://10.255.255.1");
