@@ -32,7 +32,7 @@ public class MonitoredService extends PanacheEntity {
 
     public LocalDateTime lastChecked;
 
-    public Boolean active = true;
+    public boolean active = true;
 
     public static List<MonitoredService> findActive() {
         return list("active", true);
