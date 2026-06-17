@@ -3,6 +3,7 @@ package ru.bicev.controller;
 import java.util.List;
 
 import jakarta.transaction.Transactional;
+import jakarta.validation.Valid;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DELETE;
 import jakarta.ws.rs.GET;
@@ -54,7 +55,7 @@ public class MonitoredServiceResource {
 
     @POST
     @Transactional
-    public Response createService(MonitoredService service) {
+    public Response createService(@Valid MonitoredService service) {
         service.id = null;
         service.persist();
 
@@ -78,19 +79,16 @@ public class MonitoredServiceResource {
     @PUT
     @Path("/{id}")
     @Transactional
-    public Response updateService(@PathParam("id") Long id, MonitoredService updatedService) {
+    public Response updateService(@PathParam("id") Long id, @Valid MonitoredService updatedService) {
         MonitoredService existing = MonitoredService.findById(id);
         if (existing == null) {
             return Response.status(Response.Status.NOT_FOUND).build();
         } else {
-            existing.name = updatedService.name != null ? updatedService.name : existing.name;
-            existing.url = updatedService.url != null ? updatedService.url : existing.url;
-            existing.active = updatedService.active != null ? updatedService.active : existing.active;
-            existing.expectedStatusCode = updatedService.expectedStatusCode != null ? updatedService.expectedStatusCode
-                    : existing.expectedStatusCode;
-            existing.checkIntervalSeconds = updatedService.checkIntervalSeconds != null
-                    ? updatedService.checkIntervalSeconds
-                    : existing.checkIntervalSeconds;
+            existing.name = updatedService.name;
+            existing.url = updatedService.url;
+            existing.active = updatedService.active;
+            existing.expectedStatusCode = updatedService.expectedStatusCode;
+            existing.checkIntervalSeconds = updatedService.checkIntervalSeconds;
 
             return Response.ok(existing).build();
         }
