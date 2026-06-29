@@ -1,79 +1,38 @@
-# service-monitor
+# Service Monitor (Quarkus & Java 21)
 
-This project uses Quarkus, the Supersonic Subatomic Java Framework.
+Высокопроизводительный асинхронный сервис для мониторинга доступности сайтов и веб-сервисов. Проект построен на базе **Quarkus** с использованием возможностей **Java 21 Virtual Threads**.
 
-If you want to learn more about Quarkus, please visit its website: <https://quarkus.io/>.
+## Ключевые особенности и архитектура
+* **Виртуальные потоки (Java 21)**: Каждая сетевая проверка выполняется в изолированном виртуальном потоке через пул `@VirtualThreads Executor`. Это позволяет одновременно мониторить тысячи сайтов без нагрузки на ОС.
+* **Изоляция транзакций**: Работа с базой данных (PostgreSQL) полностью отделена от сетевого ввода-вывода (HTTP-запросов) и асинхронной почты с помощью ручного управления `QuarkusTransaction.requiringNew()`. Транзакции длятся миллисекунды.
+* **Защита от наслоения**: Благодаря встроенному планировщику Quarkus и флагу `concurrentExecution = SKIP` в связке с `CompletableFuture.allOf().join()`, новые циклы проверки не запускаются, если предыдущие ещё не завершились.
+* **Асинхронные алерты**: При падении сервиса (код `>= 500` или сетевая ошибка) уведомления отправляются в фоне через `ReactiveMailer`. Сбой почтового сервера не блокирует приложение и не откатывает логи в БД.
+* **REST API**: Полноценное CRUD-управление целями мониторинга и выгрузка логов с поддержкой пагинации на уровне базы данных.
 
-## Running the application in dev mode
+## Технологический стек
+* **Java 21** (Virtual Threads, Stream API, Pattern Matching)
+* **Quarkus** (REST Jackson, Hibernate ORM with Panache, Scheduler, Reactive Mailer)
+* **PostgreSQL** (Основная БД) / **H2 Database** (В памяти для интеграционных тестов)
+* **REST Assured & Awaitility** (Тестирование асинхронности и REST-слоя)
 
-You can run your application in dev mode that enables live coding using:
+## Как запустить локально
 
-```shell script
+### 1. Режим разработки (Dev Mode)
+Запустите приложение в режиме live-coding. Quarkus автоматически поднимет временную базу данных в Docker (Dev Services), если она не настроена:
+```bash
 ./mvnw quarkus:dev
 ```
+После старта документация API (Swagger UI) будет доступна по адресу: `http://localhost:8080/q/swagger-ui/`
 
-> **_NOTE:_**  Quarkus now ships with a Dev UI, which is available in dev mode only at <http://localhost:8080/q/dev/>.
+### 2. Запуск тестов
+Прогон интеграционных тестов многопоточности и REST-слоя на базе H2 в памяти:
+```bash
+./mvnw test
+```
 
-## Packaging and running the application
-
-The application can be packaged using:
-
-```shell script
+### 3. Сборка в Docker
+Сборка классического JVM-образа:
+```bash
 ./mvnw package
+docker build -f src/main/docker/Dockerfile.jvm -t ru.bicev/service-monitor .
 ```
-
-It produces the `quarkus-run.jar` file in the `target/quarkus-app/` directory.
-Be aware that it’s not an _über-jar_ as the dependencies are copied into the `target/quarkus-app/lib/` directory.
-
-The application is now runnable using `java -jar target/quarkus-app/quarkus-run.jar`.
-
-If you want to build an _über-jar_, execute the following command:
-
-```shell script
-./mvnw package -Dquarkus.package.jar.type=uber-jar
-```
-
-The application, packaged as an _über-jar_, is now runnable using `java -jar target/*-runner.jar`.
-
-## Creating a native executable
-
-You can create a native executable using:
-
-```shell script
-./mvnw package -Dnative
-```
-
-Or, if you don't have GraalVM installed, you can run the native executable build in a container using:
-
-```shell script
-./mvnw package -Dnative -Dquarkus.native.container-build=true
-```
-
-You can then execute your native executable with: `./target/service-monitor-1.0.0-SNAPSHOT-runner`
-
-If you want to learn more about building native executables, please consult <https://quarkus.io/guides/maven-tooling>.
-
-## Related Guides
-
-- REST ([guide](https://quarkus.io/guides/rest)): Build RESTful web services and APIs using Jakarta REST (formerly JAX-RS)
-- REST Jackson ([guide](https://quarkus.io/guides/rest#json-serialisation)): Jackson serialization support for Quarkus REST. This extension is not compatible with the quarkus-resteasy extension, or any of the extensions that depend on it
-- Hibernate ORM with Panache ([guide](https://quarkus.io/guides/hibernate-orm-panache)): Simplified JPA/Hibernate data access layer with active record and repository patterns
-- JDBC Driver - PostgreSQL ([guide](https://quarkus.io/guides/datasource)): Connect to the PostgreSQL database via JDBC
-
-## Provided Code
-
-### Hibernate ORM
-
-Create your first JPA entity
-
-[Related guide section...](https://quarkus.io/guides/hibernate-orm)
-
-
-[Related Hibernate with Panache section...](https://quarkus.io/guides/hibernate-orm-panache)
-
-
-### REST
-
-Easily start your REST Web Services
-
-[Related guide section...](https://quarkus.io/guides/getting-started-reactive#reactive-jax-rs-resources)
