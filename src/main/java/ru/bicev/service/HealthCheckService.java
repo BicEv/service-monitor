@@ -11,12 +11,15 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 
 import org.eclipse.microprofile.config.inject.ConfigProperty;
+import org.eclipse.microprofile.reactive.messaging.Channel;
+import org.eclipse.microprofile.reactive.messaging.Emitter;
 
 import io.quarkus.mailer.Mail;
 import io.quarkus.mailer.reactive.ReactiveMailer;
 import io.quarkus.narayana.jta.QuarkusTransaction;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import ru.bicev.dto.ServiceFailureEvent;
 import ru.bicev.entity.HealthCheckLog;
 import ru.bicev.entity.MonitoredService;
 
@@ -29,6 +32,10 @@ public class HealthCheckService {
 
     @Inject
     ReactiveMailer mailer;
+
+    @Inject
+    @Channel("service-failures")
+    Emitter<ServiceFailureEvent> failureEmitter;
 
     @Inject
     @ConfigProperty(name = "monitoring.alert.email")
@@ -51,18 +58,8 @@ public class HealthCheckService {
 
             log.statusCode = response.statusCode();
             log.isSuccess = (log.statusCode.equals(service.expectedStatusCode));
-        } catch (HttpTimeoutException e) {
-            log.isSuccess = false;
-            log.failureReason = "Timeout: service did not respond within expected time.";
-        } catch (UnknownHostException e) {
-            log.isSuccess = false;
-            log.failureReason = "DNS error: unable to find host.";
-        } catch (ConnectException e) {
-            log.isSuccess = false;
-            log.failureReason = "Connection refused: service is not accepting connections.";
         } catch (Exception e) {
-            log.isSuccess = false;
-            log.failureReason = e.getMessage();
+            handleException(log, e);
         } finally {
             log.responseTimeMs = System.currentTimeMillis() - start;
             QuarkusTransaction.requiringNew().run(() -> {
@@ -77,6 +74,12 @@ public class HealthCheckService {
         }
         if (alertEmail != null && !alertEmail.isBlank() && !log.isSuccess) {
             sendAlertEmail(service, log);
+            failureEmitter.send(new ServiceFailureEvent(
+                    service.id,
+                    service.name,
+                    service.url,
+                    log.statusCode,
+                    log.failureReason, LocalDateTime.now()));
         }
 
     }
@@ -92,5 +95,30 @@ public class HealthCheckService {
                 .subscribe().with(success -> {
                 },
                         failure -> System.err.println("Failed to send alert email: " + failure.getMessage()));
+    }
+
+    private void handleException(HealthCheckLog log, Exception e) {
+        log.isSuccess = false;
+
+        switch (e) {
+            case HttpTimeoutException ex -> {
+                log.failureReason = "Timeout: service did not respond within expected time.";
+                log.statusCode = 408;
+            }
+            case UnknownHostException ex -> {
+                log.failureReason = "DNS error: unable to find host.";
+                log.statusCode = 502;
+            }
+            case ConnectException ex -> {
+                log.failureReason = "Connection refused: service is not accepting connections.";
+                log.statusCode = 503;
+            }
+
+            default -> {
+                log.failureReason = e.getMessage();
+                log.statusCode = 500;
+            }
+
+        }
     }
 }
