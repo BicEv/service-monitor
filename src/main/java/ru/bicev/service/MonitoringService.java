@@ -7,7 +7,7 @@ import io.quarkus.scheduler.Scheduled;
 import io.quarkus.virtual.threads.VirtualThreads;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import ru.bicev.entity.MonitoredService;
+import ru.bicev.repo.MonitoredServiceRepository;
 
 @ApplicationScoped
 public class MonitoringService {
@@ -19,9 +19,12 @@ public class MonitoringService {
     @VirtualThreads
     private Executor virtualThreadExecutor;
 
+    @Inject
+    private MonitoredServiceRepository serviceRepository;
+
     @Scheduled(identity = "check-services-job", every = "${check.services.job.every}", concurrentExecution = Scheduled.ConcurrentExecution.SKIP)
     public void checkAllServices() {
-        var services = MonitoredService.findReadyToCheck();
+        var services = serviceRepository.findReadyToCheck();
 
         if (services.isEmpty())
             return;
