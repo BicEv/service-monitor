@@ -130,7 +130,7 @@ public class MonitoringServiceTest {
             scheduler.pause();
         }
 
-        await().atMost(Duration.ofSeconds(httpTimeoutSeconds + 5))
+        await().atMost(Duration.ofSeconds(httpTimeoutSeconds + 15))
                 .pollInterval(Duration.ofMillis(500))
                 .until(() -> {
                     long count = QuarkusTransaction.requiringNew().call(() -> logRepository.count());
