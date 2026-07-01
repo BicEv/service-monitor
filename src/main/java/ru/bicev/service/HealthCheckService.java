@@ -1,16 +1,11 @@
 package ru.bicev.service;
 
 import java.net.ConnectException;
-import java.net.URI;
 import java.net.UnknownHostException;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.net.http.HttpTimeoutException;
-import java.time.Duration;
 import java.time.LocalDateTime;
 
-import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.eclipse.microprofile.reactive.messaging.Channel;
 import org.eclipse.microprofile.reactive.messaging.Emitter;
 
@@ -26,17 +21,12 @@ import ru.bicev.repo.MonitoredServiceRepository;
 @ApplicationScoped
 public class HealthCheckService {
 
-    private final HttpClient httpClient = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(5))
-            .build();
-
     @Inject
     @Channel("service-failures")
     Emitter<ServiceFailureEvent> failureEmitter;
 
     @Inject
-    @ConfigProperty(name = "monitoring.http.timeout-seconds")
-    int httpTimeoutSeconds;
+    MonitoringHttpClient monitoringHttpClient;
 
     @Inject
     private HealthCheckLogRepository logRepository;
@@ -50,13 +40,15 @@ public class HealthCheckService {
         long start = System.currentTimeMillis();
 
         try {
-            var request = HttpRequest.newBuilder().uri(URI.create(service.url))
-                    .timeout(Duration.ofSeconds(httpTimeoutSeconds)).GET().build();
 
-            var response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            HttpResponse<String> response = monitoringHttpClient.executeNetworkRequestWithRetry(service.url);
 
             log.statusCode = response.statusCode();
             log.isSuccess = (log.statusCode.equals(service.expectedStatusCode));
+            if (!log.isSuccess) {
+                log.failureReason = "Unexpected status code: expected " + service.expectedStatusCode + " but got "
+                        + log.statusCode;
+            }
         } catch (Exception e) {
             handleException(log, e);
         } finally {
