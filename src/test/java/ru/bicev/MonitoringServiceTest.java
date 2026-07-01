@@ -14,6 +14,8 @@ import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import ru.bicev.entity.HealthCheckLog;
 import ru.bicev.entity.MonitoredService;
+import ru.bicev.repo.HealthCheckLogRepository;
+import ru.bicev.repo.MonitoredServiceRepository;
 import ru.bicev.service.MonitoringService;
 
 import static org.awaitility.Awaitility.await;
@@ -28,6 +30,12 @@ public class MonitoringServiceTest {
 
     @Inject
     Scheduler scheduler;
+
+    @Inject
+    MonitoredServiceRepository serviceRepository;
+
+    @Inject
+    HealthCheckLogRepository logRepository;
 
     @Inject
     @ConfigProperty(name = "monitoring.http.timeout-seconds")
@@ -59,11 +67,11 @@ public class MonitoringServiceTest {
         await().atMost(Duration.ofSeconds(5))
                 .pollInterval(Duration.ofMillis(100))
                 .until(() -> {
-                    long count = QuarkusTransaction.requiringNew().call(() -> HealthCheckLog.count());
+                    long count = QuarkusTransaction.requiringNew().call(() -> logRepository.count());
                     return count == 2;
                 });
 
-        List<HealthCheckLog> logs = QuarkusTransaction.requiringNew().call(() -> HealthCheckLog.listAll());
+        List<HealthCheckLog> logs = QuarkusTransaction.requiringNew().call(() -> logRepository.listAll());
 
         assertEquals(2, logs.size());
 
@@ -97,11 +105,11 @@ public class MonitoringServiceTest {
         await().atMost(Duration.ofSeconds(5))
                 .pollInterval(Duration.ofMillis(500))
                 .until(() -> {
-                    long count = QuarkusTransaction.requiringNew().call(() -> HealthCheckLog.count());
+                    long count = QuarkusTransaction.requiringNew().call(() -> logRepository.count());
                     return count >= 1;
                 });
 
-        long finalCount = QuarkusTransaction.requiringNew().call(() -> HealthCheckLog.count());
+        long finalCount = QuarkusTransaction.requiringNew().call(() -> logRepository.count());
         assertEquals(4, finalCount);
 
     }
@@ -125,11 +133,11 @@ public class MonitoringServiceTest {
         await().atMost(Duration.ofSeconds(httpTimeoutSeconds + 5))
                 .pollInterval(Duration.ofMillis(500))
                 .until(() -> {
-                    long count = QuarkusTransaction.requiringNew().call(() -> HealthCheckLog.count());
+                    long count = QuarkusTransaction.requiringNew().call(() -> logRepository.count());
                     return count >= 1;
                 });
 
-        long finalCount = QuarkusTransaction.requiringNew().call(() -> HealthCheckLog.count());
+        long finalCount = QuarkusTransaction.requiringNew().call(() -> logRepository.count());
         assertEquals(1, finalCount, "Scheduler must skip all overlapping runs, leaving exactly 1 log");
     }
 
@@ -140,7 +148,7 @@ public class MonitoringServiceTest {
         service.active = true;
         service.expectedStatusCode = 200;
         service.checkIntervalSeconds = 10;
-        service.persist();
+        serviceRepository.persist(service);
     }
 
 }
