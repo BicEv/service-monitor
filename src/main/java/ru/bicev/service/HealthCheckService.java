@@ -20,6 +20,8 @@ import jakarta.inject.Inject;
 import ru.bicev.dto.ServiceFailureEvent;
 import ru.bicev.entity.HealthCheckLog;
 import ru.bicev.entity.MonitoredService;
+import ru.bicev.repo.HealthCheckLogRepository;
+import ru.bicev.repo.MonitoredServiceRepository;
 
 @ApplicationScoped
 public class HealthCheckService {
@@ -28,7 +30,6 @@ public class HealthCheckService {
             .connectTimeout(Duration.ofSeconds(5))
             .build();
 
-
     @Inject
     @Channel("service-failures")
     Emitter<ServiceFailureEvent> failureEmitter;
@@ -36,6 +37,12 @@ public class HealthCheckService {
     @Inject
     @ConfigProperty(name = "monitoring.http.timeout-seconds")
     int httpTimeoutSeconds;
+
+    @Inject
+    private HealthCheckLogRepository logRepository;
+
+    @Inject
+    private MonitoredServiceRepository serviceRepository;
 
     public void performCheck(MonitoredService service) {
         HealthCheckLog log = new HealthCheckLog();
@@ -55,11 +62,11 @@ public class HealthCheckService {
         } finally {
             log.responseTimeMs = System.currentTimeMillis() - start;
             QuarkusTransaction.requiringNew().run(() -> {
-                MonitoredService managedService = MonitoredService.findById(service.id);
+                MonitoredService managedService = serviceRepository.findById(service.id);
                 if (managedService != null) {
                     managedService.lastChecked = LocalDateTime.now();
                     log.service = managedService;
-                    log.persist();
+                    logRepository.persist(log);
                 }
             });
 
@@ -74,7 +81,6 @@ public class HealthCheckService {
         }
 
     }
-
 
     private void handleException(HealthCheckLog log, Exception e) {
         log.isSuccess = false;

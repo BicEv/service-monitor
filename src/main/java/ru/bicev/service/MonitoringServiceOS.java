@@ -17,20 +17,27 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import ru.bicev.entity.HealthCheckLog;
 import ru.bicev.entity.MonitoredService;
+import ru.bicev.repo.HealthCheckLogRepository;
+import ru.bicev.repo.MonitoredServiceRepository;
 
 //This class is written for educational purposes and is not intended for production use.
 //@ApplicationScoped
 public class MonitoringServiceOS {
 
-    //@Inject
+    // @Inject
     HealthCheckService healthCheckService;
+
+    // @Inject
+    private MonitoredServiceRepository serviceRepository;
+    // @Inject
+    private HealthCheckLogRepository logRepository;
 
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(5))
             .build();
 
     public void checkAllServiceManually() {
-        List<MonitoredService> services = MonitoredService.findReadyToCheck();
+        List<MonitoredService> services = serviceRepository.findReadyToCheck();
 
         if (services.isEmpty()) {
             return;
@@ -55,23 +62,14 @@ public class MonitoringServiceOS {
 
                             log.statusCode = response.statusCode();
                             log.isSuccess = (log.statusCode == managedService.expectedStatusCode);
-                        } catch (HttpTimeoutException e) {
-                            log.isSuccess = false;
-                            log.failureReason = "Timeout: service did not respond within expected time.";
-                        } catch (UnknownHostException e) {
-                            log.isSuccess = false;
-                            log.failureReason = "DNS error: unable to find host.";
-                        } catch (ConnectException e) {
-                            log.isSuccess = false;
-                            log.failureReason = "Connection refused: service is not accepting connections.";
                         } catch (Exception e) {
-                            log.isSuccess = false;
-                            log.failureReason = e.getMessage();
+
+                            handleException(e, log);
                         } finally {
                             log.responseTimeMs = System.currentTimeMillis() - start;
                             managedService.lastChecked = LocalDateTime.now();
 
-                            log.persist();
+                            logRepository.persist(log);
                         }
 
                     });
@@ -79,6 +77,31 @@ public class MonitoringServiceOS {
             }
         }
 
+    }
+
+    private void handleException(Exception e, HealthCheckLog log) {
+        log.isSuccess = false;
+
+        switch (e) {
+            case HttpTimeoutException ex -> {
+                log.failureReason = "Timeout: service did not respond within expected time.";
+                log.statusCode = 408;
+            }
+            case UnknownHostException ex -> {
+                log.failureReason = "DNS error: unable to find host.";
+                log.statusCode = 502;
+            }
+            case ConnectException ex -> {
+                log.failureReason = "Connection refused: service is not accepting connections.";
+                log.statusCode = 503;
+            }
+
+            default -> {
+                log.failureReason = e.getMessage();
+                log.statusCode = 500;
+            }
+
+        }
     }
 
 }
