@@ -7,7 +7,6 @@ import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import io.quarkus.mailer.MockMailbox;
 import io.quarkus.narayana.jta.QuarkusTransaction;
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.scheduler.Scheduler;
@@ -28,9 +27,6 @@ public class MonitoringServiceTest {
     MonitoringService monitoringService;
 
     @Inject
-    MockMailbox mailbox;
-
-    @Inject
     Scheduler scheduler;
 
     @Inject
@@ -42,7 +38,6 @@ public class MonitoringServiceTest {
     void cleanDatabase() {
         HealthCheckLog.deleteAll();
         MonitoredService.deleteAll();
-        mailbox.clear();
     }
 
     // Not sure if i really need to open all these transactions in this test, but
@@ -79,7 +74,6 @@ public class MonitoringServiceTest {
                     || log.failureReason.contains("Connection refused"));
         }
 
-        assertEquals(2, mailbox.getTotalMessagesSent());
     }
 
     @Test

@@ -14,8 +14,6 @@ import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.eclipse.microprofile.reactive.messaging.Channel;
 import org.eclipse.microprofile.reactive.messaging.Emitter;
 
-import io.quarkus.mailer.Mail;
-import io.quarkus.mailer.reactive.ReactiveMailer;
 import io.quarkus.narayana.jta.QuarkusTransaction;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -30,16 +28,10 @@ public class HealthCheckService {
             .connectTimeout(Duration.ofSeconds(5))
             .build();
 
-    @Inject
-    ReactiveMailer mailer;
 
     @Inject
     @Channel("service-failures")
     Emitter<ServiceFailureEvent> failureEmitter;
-
-    @Inject
-    @ConfigProperty(name = "monitoring.alert.email")
-    String alertEmail;
 
     @Inject
     @ConfigProperty(name = "monitoring.http.timeout-seconds")
@@ -72,8 +64,7 @@ public class HealthCheckService {
             });
 
         }
-        if (alertEmail != null && !alertEmail.isBlank() && !log.isSuccess) {
-            sendAlertEmail(service, log);
+        if (!log.isSuccess) {
             failureEmitter.send(new ServiceFailureEvent(
                     service.id,
                     service.name,
@@ -84,18 +75,6 @@ public class HealthCheckService {
 
     }
 
-    private void sendAlertEmail(MonitoredService service, HealthCheckLog log) {
-        String reason = log.failureReason != null ? log.failureReason : "Status code: " + log.statusCode;
-
-        mailer.send(Mail.withText(alertEmail,
-                "ALERT: Service " + service.name + " is DOWN!",
-                String.format("Service URL: %s\nChecked at: %s\nReason: %s\nResponse time: %d ms\nException reason: %s",
-                        service.url,
-                        log.checkedAt, reason, log.responseTimeMs, log.failureReason)))
-                .subscribe().with(success -> {
-                },
-                        failure -> System.err.println("Failed to send alert email: " + failure.getMessage()));
-    }
 
     private void handleException(HealthCheckLog log, Exception e) {
         log.isSuccess = false;
