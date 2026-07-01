@@ -15,7 +15,9 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import ru.bicev.dto.MonitoredServiceDto;
 import ru.bicev.entity.MonitoredService;
+import ru.bicev.util.Mapper;
 
 @Path("/api/v1/services")
 @Produces(MediaType.APPLICATION_JSON)
@@ -23,8 +25,8 @@ import ru.bicev.entity.MonitoredService;
 public class MonitoredServiceResource {
 
     @GET
-    public List<MonitoredService> getAllServices() {
-        return MonitoredService.listAll();
+    public List<MonitoredServiceDto> getAllServices() {
+        return Mapper.toServiceDtoList(MonitoredService.listAll());
 
     }
 
@@ -35,29 +37,29 @@ public class MonitoredServiceResource {
         if (service == null) {
             return Response.status(Response.Status.NOT_FOUND).build();
         } else {
-            return Response.status(Response.Status.OK).entity(service).build();
+            return Response.status(Response.Status.OK).entity(Mapper.toServiceDto(service)).build();
         }
     }
 
     @GET
     @Path("/active")
-    public List<MonitoredService> getActiveServices() {
-        return MonitoredService.findActive();
+    public List<MonitoredServiceDto> getActiveServices() {
+        return Mapper.toServiceDtoList(MonitoredService.findActive());
     }
 
     @GET
     @Path("/inactive")
-    public List<MonitoredService> getInactiveServices() {
-        return MonitoredService.findInactive();
+    public List<MonitoredServiceDto> getInactiveServices() {
+        return Mapper.toServiceDtoList(MonitoredService.findInactive());
     }
 
     @GET
     @Path("/search")
-    public List<MonitoredService> searchServices(@QueryParam("name") String name, @QueryParam("url") String url) {
+    public List<MonitoredServiceDto> searchServices(@QueryParam("name") String name, @QueryParam("url") String url) {
         if (name != null && !name.isEmpty()) {
-            return MonitoredService.findNameLike(name);
+            return Mapper.toServiceDtoList(MonitoredService.findNameLike(name));
         } else if (url != null && !url.isEmpty()) {
-            return MonitoredService.findUrlLike(url);
+            return Mapper.toServiceDtoList(MonitoredService.findUrlLike(url));
         } else {
             return List.of();
         }
@@ -66,12 +68,13 @@ public class MonitoredServiceResource {
 
     @POST
     @Transactional
-    public Response createService(@Valid MonitoredService service) {
+    public Response createService(@Valid MonitoredServiceDto createRequest) {
+        var service = Mapper.toServiceEntity(createRequest);
         service.id = null;
         service.persist();
 
         return Response.status(Response.Status.CREATED)
-                .entity(service)
+                .entity(Mapper.toServiceDto(service))
                 .build();
     }
 
@@ -90,18 +93,14 @@ public class MonitoredServiceResource {
     @PUT
     @Path("/{id}")
     @Transactional
-    public Response updateService(@PathParam("id") Long id, @Valid MonitoredService updatedService) {
+    public Response updateService(@PathParam("id") Long id, @Valid MonitoredServiceDto updateRequest) {
         MonitoredService existing = MonitoredService.findById(id);
         if (existing == null) {
             return Response.status(Response.Status.NOT_FOUND).build();
         } else {
-            existing.name = updatedService.name;
-            existing.url = updatedService.url;
-            existing.active = updatedService.active;
-            existing.expectedStatusCode = updatedService.expectedStatusCode;
-            existing.checkIntervalSeconds = updatedService.checkIntervalSeconds;
+            Mapper.updateServiceEntityFromDto(existing, updateRequest);
 
-            return Response.ok(existing).build();
+            return Response.ok(Mapper.toServiceDto(existing)).build();
         }
     }
 
