@@ -38,7 +38,7 @@ public class HealthCheckService {
         HealthCheckLog log = new HealthCheckLog();
         log.checkedAt = LocalDateTime.now();
         long start = System.currentTimeMillis();
-
+        boolean wasBroken = service.broken != null && service.broken;
         try {
 
             HttpResponse<String> response = monitoringHttpClient.executeNetworkRequestWithRetry(service.url);
@@ -57,13 +57,14 @@ public class HealthCheckService {
                 MonitoredService managedService = serviceRepository.findById(service.id);
                 if (managedService != null) {
                     managedService.lastChecked = LocalDateTime.now();
+                    managedService.broken = !log.isSuccess;
                     log.service = managedService;
                     logRepository.persist(log);
                 }
             });
 
         }
-        if (!log.isSuccess) {
+        if (!log.isSuccess && !wasBroken) {
             failureEmitter.send(new ServiceFailureEvent(
                     service.id,
                     service.name,
