@@ -15,14 +15,26 @@ import ru.bicev.dto.HealthCheckLogDto;
 import ru.bicev.repo.HealthCheckLogRepository;
 import ru.bicev.util.Mapper;
 
+/**
+ * Contoller that provides API for access health check logs.
+ * Base URL of controller is "/api/v1/logs"
+ */
 @Path("/api/v1/logs")
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
 public class HealthCheckLogResource {
 
+    /** Bean of HealhCheckLogRepository */
     @Inject
     private HealthCheckLogRepository logRepository;
 
+    /**
+     * Returns list of health check logs for the provided service ID, with pagination
+     * @param serviceId     ID of the service 
+     * @param pageNum       Number of page for pagination
+     * @param size          Size of page for pagination
+     * @return              List of JSON serialized HealthCheckLogDto DTOs for specified service
+     */
     @GET
     @Path("/service/{serviceId}")
     public List<HealthCheckLogDto> getLogsByService(
@@ -32,6 +44,12 @@ public class HealthCheckLogResource {
         return Mapper.toHealthCheckLogDtoList(logRepository.findByServiceId(serviceId, pageNum, size));
     }
 
+    /**
+     * Returns list of health check logs with status failed, with pagination support
+     * @param pageNum       Number of page for pagination   
+     * @param size          Size of page for pagination
+     * @return              List of JSON serialized HealthCheckLogDto DTOs which were failed
+     */
     @GET
     @Path("/failures")
     public List<HealthCheckLogDto> getAllFailures(
@@ -40,6 +58,13 @@ public class HealthCheckLogResource {
         return Mapper.toHealthCheckLogDtoList(logRepository.findAllFailures(pageNum, size));
     }
 
+    /**
+     * Returns list of health check logs for the provided service ID with failed status, with pagination
+     * @param serviceId     ID of the service 
+     * @param pageNum       Number of page for pagination
+     * @param size          Size of page for pagination
+     * @return              List of JSON serialized HealthCheckLogDto DTOs for specified service which were failed
+     */
     @GET
     @Path("/service/{serviceId}/failures")
     public List<HealthCheckLogDto> getFailuresByService(
@@ -49,6 +74,13 @@ public class HealthCheckLogResource {
         return Mapper.toHealthCheckLogDtoList(logRepository.findFailuresByService(serviceId, pageNum, size));
     }
 
+    /**
+     * Returns list of latest health check logs, limited with the given paramether, with pagination
+     * @param limit         Limit of the returned list size
+     * @param pageNum       Number of page for pagination
+     * @param size          Size of page for pagination
+     * @return              List of latest JSON serialized HealthCheckLogDto DTOs limited with the given limit
+     */
     @GET
     @Path("/latest")
     public List<HealthCheckLogDto> getLatestLogs(
@@ -58,6 +90,13 @@ public class HealthCheckLogResource {
         return Mapper.toHealthCheckLogDtoList(logRepository.findLastLogs(limit, pageNum, size));
     }
 
+    /**
+     * Returns list of  health check logs, for the provided HTTP status code, with pagination 
+     * @param statusCode    HTTP status code
+     * @param pageNum       Number of page for pagination    
+     * @param size          Size of page for pagination
+     * @return              List of  JSON serialized HealthCheckLogDto DTOs with the given status code
+     */
     @GET
     @Path("/status")
     public List<HealthCheckLogDto> getLogsByStatusCode(

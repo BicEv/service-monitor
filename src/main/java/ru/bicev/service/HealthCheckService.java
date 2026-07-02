@@ -18,22 +18,33 @@ import ru.bicev.entity.MonitoredService;
 import ru.bicev.repo.HealthCheckLogRepository;
 import ru.bicev.repo.MonitoredServiceRepository;
 
+/**
+ * Service that performs health checks on monitored services and logs the results. It also emits events for service failures.
+ */
 @ApplicationScoped
 public class HealthCheckService {
 
+    /** Bean of Kafka emmitter */
     @Inject
     @Channel("service-failures")
     Emitter<ServiceFailureEvent> failureEmitter;
 
+    /** Bean of MonitoringHttpClient */
     @Inject
     MonitoringHttpClient monitoringHttpClient;
 
+    /** Bean of HealthCheckLogRepository */
     @Inject
     private HealthCheckLogRepository logRepository;
 
+    /** Bean of MonitoredServiceRepository */
     @Inject
     private MonitoredServiceRepository serviceRepository;
 
+    /**
+     * Performs a health check on the given monitored service, logs the result, and emits a failure event if the service is found to be broken.
+     * @param service   The monitored service to check
+     */
     public void performCheck(MonitoredService service) {
         HealthCheckLog log = new HealthCheckLog();
         log.checkedAt = LocalDateTime.now();
@@ -75,6 +86,11 @@ public class HealthCheckService {
 
     }
 
+    /**
+     * Handles exceptions that occur during the health check process, updating the log with appropriate failure reasons and status codes.
+     * @param log   The health check log to update with failure information
+     * @param e     Exception that occurred during the health check
+     */
     private void handleException(HealthCheckLog log, Exception e) {
         log.isSuccess = false;
 
