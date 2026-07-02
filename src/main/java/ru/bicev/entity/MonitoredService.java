@@ -29,4 +29,6 @@ public class MonitoredService extends PanacheEntityBase {
 
     public Boolean active = true;
 
+    public Boolean broken = false;
+
 }
