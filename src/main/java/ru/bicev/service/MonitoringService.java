@@ -38,4 +38,18 @@ public class MonitoringService {
         CompletableFuture.allOf(futures).join();
     }
 
+    @Scheduled(identity = "recover-services-job", every = "${recover.services.job.every}", concurrentExecution = Scheduled.ConcurrentExecution.SKIP)
+    public void recoverBrokenServices() {
+        var brokenServices = serviceRepository.findBrokenServices();
+        if (brokenServices.isEmpty())
+            return;
+
+        var futures = brokenServices.stream()
+                .map(service -> CompletableFuture.runAsync(
+                        () -> healthCheckService.performCheck(service), virtualThreadExecutor))
+                .toArray(CompletableFuture[]::new);
+
+        CompletableFuture.allOf(futures).join();
+    }
+
 }
