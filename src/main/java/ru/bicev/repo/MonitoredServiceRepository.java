@@ -27,11 +27,15 @@ public class MonitoredServiceRepository implements PanacheRepository<MonitoredSe
     }
 
     public List<MonitoredService> findReadyToCheck() {
-        var active = list("active", true);
+        var active = list("active = true and broken = false");
         LocalDateTime now = LocalDateTime.now();
         return active.stream()
                 .filter(s -> s.lastChecked == null || s.lastChecked.plusSeconds(s.checkIntervalSeconds).isBefore(now))
                 .toList();
+    }
+
+    public List<MonitoredService> findBrokenServices() {
+        return list("active = true and broken = true");
     }
 
 }
