@@ -86,6 +86,17 @@ public class MonitoredServiceResource {
     }
 
     /**
+     * Finds all broken monitored services
+     * 
+     * @return List of all broken JSON serialized MonitoredServiceDto DTOs
+     */
+    @GET
+    @Path("/broken")
+    public List<MonitoredServiceDto> getBrokenServices() {
+        return Mapper.toServiceDtoList(serviceRepository.findBrokenServices());
+    }
+
+    /**
      * Finds a monitored service with given paramethers (name/URL)
      * 
      * @param name Name to search for
@@ -96,13 +107,8 @@ public class MonitoredServiceResource {
     @GET
     @Path("/search")
     public List<MonitoredServiceDto> searchServices(@QueryParam("name") String name, @QueryParam("url") String url) {
-        if (name != null && !name.isEmpty()) {
-            return Mapper.toServiceDtoList(serviceRepository.findNameLike(name));
-        } else if (url != null && !url.isEmpty()) {
-            return Mapper.toServiceDtoList(serviceRepository.findUrlLike(url));
-        } else {
-            return List.of();
-        }
+        var services = serviceRepository.search(name, url);
+        return Mapper.toServiceDtoList(services);
 
     }
 
