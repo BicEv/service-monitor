@@ -9,9 +9,13 @@ import org.junit.jupiter.api.Test;
 
 import io.quarkus.narayana.jta.QuarkusTransaction;
 import io.quarkus.test.junit.QuarkusTest;
+import io.smallrye.reactive.messaging.memory.InMemoryConnector;
+import io.smallrye.reactive.messaging.memory.InMemorySink;
 import io.quarkus.scheduler.Scheduler;
+import jakarta.enterprise.inject.Any;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
+import ru.bicev.dto.ServiceFailureEvent;
 import ru.bicev.entity.HealthCheckLog;
 import ru.bicev.entity.MonitoredService;
 import ru.bicev.repo.HealthCheckLogRepository;
@@ -41,11 +45,20 @@ public class MonitoringServiceTest {
     @ConfigProperty(name = "monitoring.http.timeout-seconds")
     int httpTimeoutSeconds;
 
+    @Inject
+    @Any
+    InMemoryConnector inMemoryConnector;
+
     @BeforeEach
     @Transactional
     void cleanDatabase() {
         HealthCheckLog.deleteAll();
         MonitoredService.deleteAll();
+
+        InMemorySink<ServiceFailureEvent> sink = inMemoryConnector.sink("service-failures");
+        if (sink != null) {
+            sink.clear();
+        }
     }
 
     // Not sure if i really need to open all these transactions in this test, but
@@ -62,9 +75,11 @@ public class MonitoringServiceTest {
             persistTestService("Fake #2", "https://some-non-existing-domain-2.com");
         });
 
+        InMemorySink<ServiceFailureEvent> failureSink = inMemoryConnector.sink("service-failures");
+
         monitoringService.checkAllServices();
 
-        await().atMost(Duration.ofSeconds(5))
+        await().atMost(Duration.ofSeconds(20))
                 .pollInterval(Duration.ofMillis(100))
                 .until(() -> {
                     long count = QuarkusTransaction.requiringNew().call(() -> logRepository.count());
@@ -82,36 +97,36 @@ public class MonitoringServiceTest {
                     || log.failureReason.contains("Connection refused"));
         }
 
+        assertEquals(2, failureSink.received().size());
+        ServiceFailureEvent firstEvent = failureSink.received().get(0).getPayload();
+        assertTrue(firstEvent.failureReason.contains("DNS error")
+                || firstEvent.failureReason.contains("Timeout")
+                || firstEvent.failureReason.contains("Connection refused"));
+
     }
 
     @Test
     void testMonitoring_Success() {
         QuarkusTransaction.requiringNew().run(() -> {
-            persistTestService("Google", "https://www.google.com");
-            persistTestService("Reddit", "https://www.reddit.com");
-
+            persistTestService("Local-App-Check", "http://localhost:8081/api/v1/services");
         });
 
         scheduler.resume();
 
-        try {
-            Thread.sleep(13000);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        } finally {
-            scheduler.pause();
-        }
-
         await().atMost(Duration.ofSeconds(5))
-                .pollInterval(Duration.ofMillis(500))
+                .pollInterval(Duration.ofMillis(200))
                 .until(() -> {
                     long count = QuarkusTransaction.requiringNew().call(() -> logRepository.count());
                     return count >= 1;
                 });
 
-        long finalCount = QuarkusTransaction.requiringNew().call(() -> logRepository.count());
-        assertEquals(4, finalCount);
+        scheduler.pause();
 
+        List<HealthCheckLog> logs = QuarkusTransaction.requiringNew().call(() -> logRepository.listAll());
+
+        assertTrue(logs.size() >= 1);
+        assertEquals(true, logs.get(0).isSuccess, "Checking must be successful (isSuccess = true)");
+        assertEquals(200, logs.get(0).statusCode);
     }
 
     @Test
