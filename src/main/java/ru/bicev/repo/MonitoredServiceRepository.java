@@ -1,7 +1,10 @@
 package ru.bicev.repo;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+
 
 import io.quarkus.hibernate.orm.panache.PanacheRepository;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -51,6 +54,35 @@ public class MonitoredServiceRepository implements PanacheRepository<MonitoredSe
      */
     public List<MonitoredService> findUrlLike(String url) {
         return list("lower(url) like lower(?1)", "%" + url + "%");
+    }
+
+    /**
+     * Finds all monitored services with the name and URL similar to the provided
+     * name and URL
+     * 
+     * @param name Name to search for
+     * @param url  URL to search for
+     * @return List of MonitoredService entities with similar URL and name to the
+     *         provided URL and name
+     */
+    public List<MonitoredService> search(String name, String url) {
+        if ((name == null || name.isBlank()) && (url == null || url.isBlank())) {
+            return List.of();
+        }
+        StringBuilder query = new StringBuilder("1=1");
+        Map<String, Object> params = new HashMap<>();
+
+        if (name != null && !name.isBlank()) {
+            query.append(" and lower(name) like lower(:name)");
+            params.put("name", "%" + name.trim() + "%");
+        }
+
+        if (url != null && !url.isBlank()) {
+            query.append(" and lower(url) like lower(:url)");
+            params.put("url", "%" + url.trim() + "%");
+        }
+
+        return list(query.toString(), params);
     }
 
     /**
